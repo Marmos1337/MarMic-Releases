@@ -1,0 +1,61 @@
+name: Publish signed Desktop recovery manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      latest_version:
+        description: Current recommended stable Desktop version
+        required: true
+        type: string
+      minimum_version:
+        description: Minimum supported Desktop version
+        required: true
+        type: string
+      policy:
+        description: Compatibility policy
+        required: true
+        default: mandatory
+        type: choice
+        options: [normal, recommended, mandatory, critical]
+      allow_active_session_grace:
+        description: Permit an active media session to finish
+        required: true
+        default: true
+        type: boolean
+  schedule:
+    - cron: '17 */12 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-recovery-manifest
+  cancel-in-progress: false
+
+jobs:
+  sign-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Sign short-lived recovery manifest
+        env:
+          RECOVERY_LATEST_VERSION: ${{ inputs.latest_version || vars.MARMIC_RECOVERY_LATEST_VERSION }}
+          RECOVERY_MINIMUM_VERSION: ${{ inputs.minimum_version || vars.MARMIC_RECOVERY_MINIMUM_VERSION }}
+          RECOVERY_UPDATE_URL: https://github.com/Marmos1337/MarMic-Releases/releases/latest/download/latest.yml
+          RECOVERY_POLICY: ${{ inputs.policy || vars.MARMIC_RECOVERY_POLICY }}
+          RECOVERY_ALLOW_ACTIVE_SESSION_GRACE: ${{ inputs.allow_active_session_grace || vars.MARMIC_RECOVERY_ALLOW_ACTIVE_SESSION_GRACE }}
+          RECOVERY_EXPIRES_HOURS: '48'
+          RECOVERY_PRIVATE_KEY_PEM: ${{ secrets.MARMIC_RECOVERY_SIGNING_KEY_PEM }}
+          RECOVERY_PUBLIC_KEY_JWK: ${{ vars.MARMIC_RECOVERY_PUBLIC_KEY_JWK }}
+        run: node scripts/sign-recovery-manifest.mjs dist/desktop-stable.json
+      - name: Publish without changing stable/latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view desktop-recovery-v1 >/dev/null 2>&1; then
+            gh release create desktop-recovery-v1 --prerelease --title "MarMic Desktop signed recovery metadata" --notes "Short-lived signed emergency metadata. This is infrastructure, not an application release."
+          fi
+          gh release upload desktop-recovery-v1 dist/desktop-stable.json --clobber
