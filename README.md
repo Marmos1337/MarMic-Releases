@@ -1,6 +1,6 @@
 # MarMic Releases
 
-Official MarMic website: [https://marmic.udav.team/](https://marmic.udav.team/)
+Official MarMic website: [https://mic.marhub.ru/](https://mic.marhub.ru/)
 
 Stable Desktop artifacts are published as versioned releases.
 
